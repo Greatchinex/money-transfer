@@ -1,14 +1,20 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 use env_logger;
 use sea_orm::{Database, DatabaseConnection};
+use serde_json::json;
 use std::{env, process};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct AppState {
     db: DatabaseConnection,
+}
+
+async fn health_checker() -> impl Responder {
+    HttpResponse::Ok()
+        .json(json!({ "status": "success", "message": "Welcome to MONEY TRANSFER APP" }))
 }
 
 #[actix_web::main]
@@ -46,6 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
         App::new()
             .app_data(web::Data::new(app_state.clone()))
+            .route("/", web::get().to(health_checker))
             .wrap(cors)
             .wrap(Logger::default())
     })
