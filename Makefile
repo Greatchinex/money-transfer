@@ -26,3 +26,13 @@ build:
 run:
 	cargo run
 
+# Need to have "sea-orm-cli" installed prior with "cargo install sea-orm-cli"
+migrate_init:
+	sea-orm-cli migrate init
+
+migrate_run:
+	sea-orm-cli migrate up
+
+migrate_rollback:
+	sea-orm-cli migrate down
+
