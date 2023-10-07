@@ -6,6 +6,8 @@ use sea_orm::{Database, DatabaseConnection};
 use serde_json::json;
 use std::{env, process};
 
+pub mod entities;
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct AppState {
