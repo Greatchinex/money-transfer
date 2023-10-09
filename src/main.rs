@@ -6,7 +6,11 @@ use sea_orm::{Database, DatabaseConnection};
 use serde_json::json;
 use std::{env, process};
 
+use routes::users::user_config;
+
 pub mod entities;
+pub mod handlers;
+pub mod routes;
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -55,6 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .route("/", web::get().to(health_checker))
+            .configure(user_config)
             .wrap(cors)
             .wrap(Logger::default())
     })
