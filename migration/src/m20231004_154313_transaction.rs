@@ -35,7 +35,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(0.00),
                     )
-                    .col(ColumnDef::new(Transactions::Type).enumeration(
+                    .col(ColumnDef::new(Transactions::TrxType).enumeration(
                         TransactionType::Table,
                         [TransactionType::Credit, TransactionType::Debit],
                     ))
@@ -106,49 +106,41 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Transactions::DeletedAt).timestamp().null())
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_amount_index")
                             .col(Transactions::Amount),
                     )
                     .index(
                         Index::create()
-                            .unique()
-                            .name("transactions_type_index")
-                            .col(Transactions::Type),
+                            .name("transactions_trx_type_index")
+                            .col(Transactions::TrxType),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_status_index")
                             .col(Transactions::Status),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_user_id_index")
                             .col(Transactions::UserId),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_wallet_id_index")
                             .col(Transactions::WalletId),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_provider_index")
                             .col(Transactions::Provider),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_fees_index")
                             .col(Transactions::Fees),
                     )
                     .index(
                         Index::create()
-                            .unique()
                             .name("transactions_category_index")
                             .col(Transactions::Category),
                     )
@@ -182,7 +174,7 @@ pub enum Transactions {
     Id,
     Uuid,
     Amount,
-    Type,
+    TrxType,
     Status,
     Description,
     ProviderReference,
