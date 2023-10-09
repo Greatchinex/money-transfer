@@ -61,7 +61,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Wallets::DeletedAt).timestamp().null())
                     .index(
                         Index::create()
-                            .unique()
                             .name("wallets_user_id_index")
                             .col(Wallets::UserId),
                     )

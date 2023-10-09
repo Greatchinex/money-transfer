@@ -14,7 +14,6 @@ pub struct Model {
     pub current_balance: Decimal,
     #[sea_orm(column_type = "Decimal(Some((18, 2)))")]
     pub previous_balance: Decimal,
-    #[sea_orm(unique)]
     pub user_id: String,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
@@ -23,8 +22,6 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::transactions::Entity")]
-    Transactions,
     #[sea_orm(
         belongs_to = "super::users::Entity",
         from = "Column::UserId",
@@ -33,12 +30,6 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Users,
-}
-
-impl Related<super::transactions::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Transactions.def()
-    }
 }
 
 impl Related<super::users::Entity> for Entity {

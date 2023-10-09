@@ -13,8 +13,8 @@ pub enum Status {
     Failed,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "type")]
-pub enum Type {
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "trx_type")]
+pub enum TrxType {
     #[sea_orm(string_value = "credit")]
     Credit,
     #[sea_orm(string_value = "debit")]
