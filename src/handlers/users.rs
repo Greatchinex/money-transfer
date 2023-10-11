@@ -1,5 +1,5 @@
 use actix_web::{post, web, HttpResponse, Responder};
-use argonautica::Hasher;
+use argonautica::{Hasher, Verifier};
 use sea_orm::*;
 use serde_json::json;
 use std::env;
@@ -7,20 +7,20 @@ use tracing::{error, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::users::SignupBody;
+use crate::dto::users::{LoginBody, SignupBody};
 use crate::entities::{prelude::Users, users};
 use crate::AppState;
 
 #[post("/signup")]
 #[instrument(skip(body, app_state), fields(user_email = %body.email))]
 pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>) -> impl Responder {
-    let user_payload = body.into_inner();
-    let validate_payload = user_payload.validate();
-    if validate_payload.is_err() {
-        return HttpResponse::BadRequest().json(
-            json!({ "status": "error", "message": "Validation errors", "data": validate_payload.unwrap_err().errors() })
-        );
-    }
+    let user_payload = match body.validate() {
+        Ok(_) => body.into_inner(),
+        Err(err) => {
+            return HttpResponse::BadRequest()
+                .json(json!({ "status": "error", "message": "Validation errors", "data": err }));
+        }
+    };
 
     let lowercase_email = user_payload.email.to_lowercase();
     let check_user = Users::find()
@@ -31,7 +31,7 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
     let check_user = match check_user {
         Ok(check_user) => check_user,
         Err(err) => {
-            error!("Database error when trying to fetch a user ===> {}", err);
+            error!("Database error while trying to fetch a user ===> {}", err);
             return HttpResponse::InternalServerError().json(json!({
                 "status": "error",
                 "message": "An error occured trying to validate user"
@@ -84,6 +84,58 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
 }
 
 #[post("/login")]
-pub async fn login() -> impl Responder {
-    HttpResponse::Ok().json(json!({ "status": "success", "message": "Login successful" }))
+#[instrument(skip(body, app_state), fields(user_email = %body.email))]
+pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -> impl Responder {
+    let user_payload = match body.validate() {
+        Ok(_) => body.into_inner(),
+        Err(err) => {
+            return HttpResponse::BadRequest()
+                .json(json!({ "status": "error", "message": "Validation errors", "data": err }));
+        }
+    };
+
+    let lowercase_email = user_payload.email.to_lowercase();
+    let check_user = Users::find()
+        .filter(users::Column::Email.eq(&lowercase_email))
+        .one(&app_state.db)
+        .await;
+
+    let check_user = match check_user {
+        Ok(Some(check_user)) => check_user,
+        Ok(None) => {
+            return HttpResponse::BadRequest()
+                .json(json!({ "status": "error", "message": "Incorrect login details" }));
+        }
+        Err(err) => {
+            error!("Database error while validating user details ===> {}", err);
+            return HttpResponse::InternalServerError().json(
+                json!({ "status": "error", "message": "An error occured trying to validate user" }),
+            );
+        }
+    };
+
+    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
+    let mut verifier = Verifier::default();
+    let is_valid_password = verifier
+        .with_hash(&check_user.password)
+        .with_password(user_payload.password)
+        .with_secret_key(hash_key)
+        .verify()
+        .unwrap_or_else(|err| {
+            error!("Failed to verify user hash ===> {}", err);
+            false
+        });
+
+    if !is_valid_password {
+        return HttpResponse::BadRequest()
+            .json(json!({ "status": "error",  "message": "Incorrect login details" }));
+    }
+
+    // TODO: Handle token generation for protected routes
+
+    HttpResponse::Ok().json(json!({
+        "status": "success",
+        "message": "Login successful",
+        "data": { "user": check_user.filter_response() }
+    }))
 }

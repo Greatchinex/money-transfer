@@ -12,6 +12,15 @@ pub struct SignupBody {
     #[validate(email(message = "Email must be a valid email type"))]
     pub email: String,
 
-    #[validate(length(min = 1, message = "Password must not be empty"))]
+    #[validate(length(min = 3, message = "Password must be minimum of three(3) characters"))]
+    pub password: String,
+}
+
+#[derive(Deserialize, Validate, Debug)]
+pub struct LoginBody {
+    #[validate(email(message = "Email must be a valid email type"))]
+    pub email: String,
+
+    #[validate(length(min = 3, message = "Password must be minimum of three(3) characters"))]
     pub password: String,
 }
