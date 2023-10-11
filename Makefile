@@ -26,6 +26,9 @@ build:
 run:
 	cargo run
 
+dev:
+	cargo watch -x run
+
 # Need to have "sea-orm-cli" installed prior with "cargo install sea-orm-cli"
 migrate_init:
 	sea-orm-cli migrate init
