@@ -1,11 +1,14 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
-use env_logger;
-use log::{error, info, LevelFilter};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use serde_json::json;
-use std::{env, process};
+use std::{env, io, process};
+use tracing::{error, info, log::LevelFilter};
+use tracing_actix_web::TracingLogger;
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_log::LogTracer;
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
 use routes::users::user_config;
 
@@ -32,12 +35,19 @@ async fn not_found() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> Result<(), anyhow::Error> {
-    if env::var_os("RUST_LOG").is_none() {
-        env::set_var("RUST_LOG", "info,actix_web=info")
-    }
-
     dotenv().ok();
-    env_logger::init();
+    LogTracer::init().expect("Unable to setup log tracer");
+
+    let app_name = env::var("APP_NAME").expect("APP_NAME is not set in .env file");
+    let (non_blocking_writer, _guard) = tracing_appender::non_blocking(io::stdout());
+    let bunyan_formatting_layer = BunyanFormattingLayer::new(app_name, non_blocking_writer);
+    let subscriber = Registry::default()
+        .with(EnvFilter::new("INFO"))
+        .with(JsonStorageLayer)
+        .with(bunyan_formatting_layer);
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to install `tracing` subscriber.");
 
     let port = env::var("PORT").expect("PORT is not set in .env file");
     let host = env::var("HOST").expect("HOST is not set in .env file");
@@ -61,7 +71,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let app_state = AppState { db: pool };
 
-    println!("Starting server on port {}", port);
+    info!("Starting server on port {}", port);
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_methods(vec!["GET", "POST", "PATCH", "PUT", "DELETE"])
@@ -73,7 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .configure(user_config)
             .default_service(web::route().to(not_found))
             .wrap(cors)
-            .wrap(Logger::default())
+            .wrap(TracingLogger::default())
     })
     .bind(&socket_address)?
     .run()
