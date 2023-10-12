@@ -15,6 +15,7 @@ use routes::users::user_config;
 pub mod dto;
 pub mod entities;
 pub mod handlers;
+pub mod middlewares;
 pub mod routes;
 
 #[derive(Debug, Clone)]

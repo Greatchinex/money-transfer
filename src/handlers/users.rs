@@ -1,14 +1,17 @@
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
 use argonautica::{Hasher, Verifier};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use sea_orm::*;
 use serde_json::json;
 use std::env;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::users::{LoginBody, SignupBody};
+use crate::dto::users::{LoginBody, SignupBody, TokenClaims};
 use crate::entities::{prelude::Users, users};
+use crate::middlewares::auth::AuthMiddleware;
 use crate::AppState;
 
 #[post("/signup")]
@@ -122,7 +125,7 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
         .with_secret_key(hash_key)
         .verify()
         .unwrap_or_else(|err| {
-            error!("Failed to verify user hash ===> {}", err);
+            error!("Failed to verify user password hash ===> {}", err);
             false
         });
 
@@ -131,11 +134,46 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
             .json(json!({ "status": "error",  "message": "Incorrect login details" }));
     }
 
-    // TODO: Handle token generation for protected routes
+    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
+    let now = Utc::now();
+    let claims = TokenClaims {
+        sub: check_user.uuid.to_string(),
+        exp: (now + Duration::minutes(60)).timestamp() as usize,
+        iat: now.timestamp() as usize,
+    };
+
+    let token = match encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(token_secret.as_ref()),
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            error!("Failed to sign token ===> {}", err);
+            return HttpResponse::InternalServerError()
+                .json(json!({ "status": "error", "message": "An unexpected error occured" }));
+        }
+    };
 
     HttpResponse::Ok().json(json!({
         "status": "success",
         "message": "Login successful",
-        "data": { "user": check_user.filter_response() }
+        "data": {
+            "token": token,
+            "user": check_user.filter_response()
+        }
     }))
+}
+
+#[get("/me")]
+#[instrument(skip(req), fields(user_id = %req.extensions().get::<uuid::Uuid>().unwrap()))]
+pub async fn me(req: HttpRequest, _: AuthMiddleware) -> impl Responder {
+    let ext = req.extensions();
+    let something = ext.get::<uuid::Uuid>().unwrap();
+    info!("========================");
+    info!("EXT:::: {:?}", ext);
+    info!("something:::: {:?}", something);
+
+    HttpResponse::Created()
+        .json(json!({ "status": "success", "message": "User fetched successfully" }))
 }
