@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 #[derive(Deserialize, Validate, Debug)]
@@ -23,4 +23,11 @@ pub struct LoginBody {
 
     #[validate(length(min = 3, message = "Password must be minimum of three(3) characters"))]
     pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenClaims {
+    pub sub: String,
+    pub exp: usize,
+    pub iat: usize,
 }
