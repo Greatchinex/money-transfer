@@ -48,7 +48,7 @@ impl FromRequest for AuthMiddleware {
             Err(error) => {
                 error!("AuthMiddleware error decoding token ===> {}", error);
                 return err(ErrorUnauthorized(
-                    json!({ "status": "error", "message": "Token validation error" }),
+                    json!({ "status": "error", "message": "Please login again" }),
                 ));
             }
         };

@@ -1,16 +1,17 @@
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
 use argonautica::{Hasher, Verifier};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use sea_orm::*;
 use serde_json::json;
 use std::env;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::users::{LoginBody, SignupBody, TokenClaims};
 use crate::entities::{prelude::Users, users};
+use crate::middlewares::auth::AuthMiddleware;
 use crate::AppState;
 
 #[post("/signup")]
@@ -162,4 +163,17 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
             "user": check_user.filter_response()
         }
     }))
+}
+
+#[get("/me")]
+#[instrument(skip(req), fields(user_id = %req.extensions().get::<uuid::Uuid>().unwrap()))]
+pub async fn me(req: HttpRequest, _: AuthMiddleware) -> impl Responder {
+    let ext = req.extensions();
+    let something = ext.get::<uuid::Uuid>().unwrap();
+    info!("========================");
+    info!("EXT:::: {:?}", ext);
+    info!("something:::: {:?}", something);
+
+    HttpResponse::Created()
+        .json(json!({ "status": "success", "message": "User fetched successfully" }))
 }
