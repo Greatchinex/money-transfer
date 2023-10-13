@@ -10,7 +10,7 @@ use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
-use routes::users::user_config;
+use routes::users::user_route_group;
 
 pub mod dto;
 pub mod entities;
@@ -81,7 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .route("/", web::get().to(health_checker))
-            .configure(user_config)
+            .configure(user_route_group)
             .default_service(web::route().to(not_found))
             .wrap(cors)
             .wrap(TracingLogger::default())

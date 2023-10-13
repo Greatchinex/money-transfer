@@ -1,20 +1,18 @@
-use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder};
 use argonautica::{Hasher, Verifier};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use sea_orm::*;
 use serde_json::json;
 use std::env;
-use tracing::{error, info, instrument};
+use tracing::{error, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::users::{LoginBody, SignupBody, TokenClaims};
 use crate::entities::{prelude::Users, users};
-use crate::middlewares::auth::AuthMiddleware;
 use crate::AppState;
 
-#[post("/signup")]
 #[instrument(skip(body, app_state), fields(user_email = %body.email))]
 pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>) -> impl Responder {
     let user_payload = match body.validate() {
@@ -86,7 +84,6 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
         .json(json!({ "status": "success", "message": "User created successfully" }))
 }
 
-#[post("/login")]
 #[instrument(skip(body, app_state), fields(user_email = %body.email))]
 pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -> impl Responder {
     let user_payload = match body.validate() {
@@ -165,15 +162,13 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
     }))
 }
 
-#[get("/me")]
-#[instrument(skip(req), fields(user_id = %req.extensions().get::<uuid::Uuid>().unwrap()))]
-pub async fn me(req: HttpRequest, _: AuthMiddleware) -> impl Responder {
-    let ext = req.extensions();
-    let something = ext.get::<uuid::Uuid>().unwrap();
-    info!("========================");
-    info!("EXT:::: {:?}", ext);
-    info!("something:::: {:?}", something);
-
-    HttpResponse::Created()
-        .json(json!({ "status": "success", "message": "User fetched successfully" }))
+#[instrument(skip(req_user), fields(user_id = %req_user.uuid))]
+pub async fn me(req_user: web::ReqData<users::Model>) -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "status": "success",
+        "message": "User fetched successfully",
+        "data": {
+            "user": req_user.filter_response()
+        }
+    }))
 }

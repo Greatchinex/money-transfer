@@ -12,7 +12,7 @@ members = [".", "migration"]
 migration = { path = "migration" }
 actix-cors = "0.6.4"
 actix-web = "4.4.0"
-actix-web-httpauth = "0.8.1"
+actix-web-lab = "0.19"
 anyhow = "1.0.75"
 argonautica = "0.2.0"
 jsonwebtoken = "8.2.0"
