@@ -11,13 +11,22 @@ install:
 	cargo add sea-orm --features "sqlx-mysql runtime-async-std-native-tls macros"
 	cargo add argonautica
 	cargo add jwt
-	cargo add actix-web-httpauth
-	cargo add hmac
-	cargo add sha2
+	cargo add actix-web-lab = "0.16"
+	cargo add jsonwebtoken
 	cargo add reqwest --features "json"
 	cargo add tokio --features "full"
 	cargo add anyhow
 	cargo add thiserror
+	cargo add rust_decimal
+	cargo add validator
+	cargo add tracing
+	cargo add tracing-appender
+	cargo add tracing-futures
+	cargo add tracing-subscriber
+	cargo add tracing-actix-web
+	cargo add tracing-bunyan-formatter
+	cargo add tracing-log
+	cargo add futures
 	cargo install cargo-watch
 
 build: 
