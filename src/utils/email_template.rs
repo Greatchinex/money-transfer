@@ -2,7 +2,7 @@ use std::env;
 
 pub fn verify_account_template(first_name: &String) -> String {
     let app_base_url = env::var("APP_BASE_URL").expect("APP_BASE_URL is not set in .env file");
-    let verify_account_url = format!("{app_base_url}/api/user/verify-email");
+    let verify_account_url = format!("{app_base_url}/api/user/verify-account");
 
     format!(
         r#"

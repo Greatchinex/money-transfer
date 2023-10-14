@@ -135,6 +135,7 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
     let now = Utc::now();
     let claims = TokenClaims {
         sub: check_user.uuid.to_string(),
+        auth_type: String::from("USER_AUTH"),
         exp: (now + Duration::minutes(60)).timestamp() as usize,
         iat: now.timestamp() as usize,
     };

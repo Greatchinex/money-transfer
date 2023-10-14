@@ -28,6 +28,7 @@ pub struct LoginBody {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenClaims {
     pub sub: String,
+    pub auth_type: String,
     pub exp: usize,
     pub iat: usize,
 }
