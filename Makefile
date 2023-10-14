@@ -27,6 +27,7 @@ install:
 	cargo add tracing-bunyan-formatter
 	cargo add tracing-log
 	cargo add futures
+	cargo add lettre
 	cargo install cargo-watch
 
 build: 

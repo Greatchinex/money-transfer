@@ -17,6 +17,7 @@ pub mod entities;
 pub mod handlers;
 pub mod middlewares;
 pub mod routes;
+pub mod utils;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
