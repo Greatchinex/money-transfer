@@ -54,6 +54,12 @@ pub async fn auth_middleware(
         }
     };
 
+    if claims.auth_type != "USER_AUTH" {
+        return Err(ErrorUnauthorized(
+            json!({ "status": "error", "message": "Invalid auth" }),
+        ));
+    }
+
     let app_state = req.app_data::<web::Data<AppState>>().unwrap().clone();
 
     let user = Users::find()
