@@ -5,19 +5,18 @@ use std::env;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitiateFundingResponse {
-    status: bool,
-    message: String,
-    data: Option<InitiateFundingResponseData>,
+    pub status: bool,
+    pub message: String,
+    pub data: Option<InitiateFundingResponseData>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitiateFundingResponseData {
-    authorization_url: String,
-    access_code: String,
-    reference: String,
+    pub authorization_url: String,
+    pub access_code: String,
+    pub reference: String,
 }
 
-#[tokio::main]
 pub async fn initiate_user_funding(
     email: &String,
     user_id: &String,
