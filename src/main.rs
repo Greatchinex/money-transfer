@@ -13,6 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 use routes::transfers::transfer_route_group;
 use routes::users::user_route_group;
 use routes::wallets::wallet_route_group;
+use routes::webhooks::webhook_route_group;
 
 pub mod dto;
 pub mod entities;
@@ -87,6 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .configure(user_route_group)
             .configure(wallet_route_group)
             .configure(transfer_route_group)
+            .configure(webhook_route_group)
             .default_service(web::route().to(not_found))
             .wrap(cors)
             .wrap(TracingLogger::default())

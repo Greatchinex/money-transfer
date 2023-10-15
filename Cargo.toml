@@ -38,3 +38,5 @@ tracing-log = "0.1.3"
 futures = "0.3.4"
 lettre = { version = "0.10", default-features = false, features = ["builder", "hostname", "smtp-transport", "tokio1-rustls-tls", "tokio1"] }
 async-trait = "0.1.73"
+ring = "0.17"
+hex = "0.4"
