@@ -11,6 +11,7 @@ use tracing_log::LogTracer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
 use routes::users::user_route_group;
+use routes::wallets::wallet_route_group;
 
 pub mod dto;
 pub mod entities;
@@ -83,6 +84,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .app_data(web::Data::new(app_state.clone()))
             .route("/", web::get().to(health_checker))
             .configure(user_route_group)
+            .configure(wallet_route_group)
             .default_service(web::route().to(not_found))
             .wrap(cors)
             .wrap(TracingLogger::default())
