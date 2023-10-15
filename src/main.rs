@@ -20,6 +20,7 @@ pub mod entities;
 pub mod handlers;
 pub mod middlewares;
 pub mod routes;
+pub mod service;
 pub mod utils;
 
 #[derive(Debug, Clone)]

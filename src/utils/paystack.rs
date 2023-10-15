@@ -1,6 +1,6 @@
 use reqwest::{header, Client, Error};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::env;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,14 +22,12 @@ pub async fn initiate_user_funding(
     user_id: &String,
     amount: u64,
 ) -> Result<InitiateFundingResponse, Error> {
-    let paystack_base_url =
+    let base_url =
         env::var("PAYSTACK_BASE_URL").expect("PAYSTACK_BASE_URL is not set in .env file");
-    let paystack_secret =
-        env::var("PAYSTACK_SECRET").expect("PAYSTACK_SECRET is not set in .env file");
+    let secret = env::var("PAYSTACK_SECRET").expect("PAYSTACK_SECRET is not set in .env file");
+    let url = format!("{base_url}/transaction/initialize");
 
     let client = Client::new();
-    let url = format!("{paystack_base_url}/transaction/initialize");
-
     let response = client
         .post(&url)
         .json(&json!({
@@ -38,10 +36,28 @@ pub async fn initiate_user_funding(
             "metadata": { "user_id": user_id, "tokenized_charge": "false" }
         }))
         .header(header::CONTENT_TYPE, "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {}", paystack_secret))
+        .header(header::AUTHORIZATION, format!("Bearer {}", secret))
         .send()
         .await?;
 
     let response_body = response.json::<InitiateFundingResponse>().await?;
+    Ok(response_body)
+}
+
+pub async fn verify_transaction(reference: &String) -> Result<Value, Error> {
+    let base_url =
+        env::var("PAYSTACK_BASE_URL").expect("PAYSTACK_BASE_URL is not set in .env file");
+    let secret = env::var("PAYSTACK_SECRET").expect("PAYSTACK_SECRET is not set in .env file");
+    let url = format!("{base_url}/transaction/verify/{reference}");
+
+    let client = Client::new();
+    let response = client
+        .get(&url)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", secret))
+        .send()
+        .await?;
+
+    let response_body = response.json::<Value>().await?;
     Ok(response_body)
 }

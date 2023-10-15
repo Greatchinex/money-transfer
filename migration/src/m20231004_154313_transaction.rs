@@ -153,7 +153,7 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("transactions_wallet_id_foreign")
-                            .from(Transactions::Table, Transactions::UserId)
+                            .from(Transactions::Table, Transactions::WalletId)
                             .to(Wallets::Table, Wallets::Uuid),
                     )
                     .to_owned(),
