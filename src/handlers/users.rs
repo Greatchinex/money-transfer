@@ -11,6 +11,10 @@ use validator::Validate;
 
 use crate::dto::users::{LoginBody, SignupBody, TokenClaims};
 use crate::entities::{prelude::Users, users};
+use crate::utils::{
+    email_template::verify_account_template,
+    send_email::{SendEmail, SendEmailTrait},
+};
 use crate::AppState;
 
 #[instrument(skip(body, app_state), fields(user_email = %body.email))]
@@ -63,9 +67,9 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
 
     let new_user = users::ActiveModel {
         uuid: Set(Uuid::new_v4().to_string()),
-        first_name: Set(user_payload.first_name),
+        first_name: Set(user_payload.first_name.clone()),
         last_name: Set(user_payload.last_name),
-        email: Set(lowercase_email),
+        email: Set(lowercase_email.clone()),
         password: Set(hashed_password),
         ..Default::default()
     };
@@ -78,7 +82,36 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
         );
     }
 
-    // TODO: Handle email delivery for user verification
+    // SIGN TOKEN FOR EMAIL VERIFICATION
+    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
+    let from_email = env::var("FROM_EMAIL").expect("FROM_EMAIL is not set in .env file");
+    let now = Utc::now();
+    let claims = TokenClaims {
+        sub: lowercase_email.clone(),
+        auth_type: String::from("ACCOUNT_VERIFICATION"),
+        exp: (now + Duration::days(3)).timestamp() as usize,
+        iat: now.timestamp() as usize,
+    };
+
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(token_secret.as_ref()),
+    )
+    .unwrap_or_else(|err| {
+        error!("Error signing verification token: {}", err);
+        String::new()
+    });
+
+    let template = verify_account_template(&user_payload.first_name, &token);
+    let email = SendEmail {
+        to: claims.sub,
+        from: from_email,
+        subject: String::from("WELCOME, VERIFY YOUR ACCOUNT"),
+        template,
+    };
+
+    let _ = email.send_email().await;
 
     HttpResponse::Created()
         .json(json!({ "status": "success", "message": "User created successfully" }))
@@ -172,4 +205,48 @@ pub async fn me(req_user: web::ReqData<users::Model>) -> impl Responder {
             "user": req_user.filter_response()
         }
     }))
+}
+
+// TODO: Implement proper verification
+pub async fn verify_account() -> impl Responder {
+    // Send email to verify account
+    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
+    let now = Utc::now();
+    let claims = TokenClaims {
+        sub: String::from("a8191cba-6789-4f04-9685-46ef06db6844"),
+        auth_type: String::from("ACCOUNT_VERIFICATION"),
+        exp: (now + Duration::days(3)).timestamp() as usize,
+        iat: now.timestamp() as usize,
+    };
+
+    let token = match encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(token_secret.as_ref()),
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            error!("Failed to sign token ===> {}", err);
+            return HttpResponse::InternalServerError()
+                .json(json!({ "status": "error", "message": "An unexpected error occured" }));
+        }
+    };
+
+    println!("TOKEN ===========> {token}");
+
+    let from_email = env::var("FROM_EMAIL").expect("FROM_EMAIL is not set in .env file");
+    let first_name = String::from("Chinedu");
+    let email = String::from("layo@layo.com");
+    let template = verify_account_template(&first_name, &token);
+
+    let email = SendEmail {
+        to: email,
+        from: from_email,
+        subject: String::from("WELCOME, VERIFY YOUR ACCOUNT"),
+        template,
+    };
+
+    let _ = email.send_email().await;
+
+    HttpResponse::Ok().json(json!({ "status": "success", "message": "Email sent" }))
 }

@@ -14,7 +14,7 @@ pub struct SendEmail {
 }
 
 #[async_trait]
-trait SendEmailTrait {
+pub trait SendEmailTrait {
     async fn send_email(&self) -> Result<(), ()>;
 }
 
