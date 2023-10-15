@@ -10,14 +10,17 @@ use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
+use routes::transfers::transfer_route_group;
 use routes::users::user_route_group;
 use routes::wallets::wallet_route_group;
+use routes::webhooks::webhook_route_group;
 
 pub mod dto;
 pub mod entities;
 pub mod handlers;
 pub mod middlewares;
 pub mod routes;
+pub mod service;
 pub mod utils;
 
 #[derive(Debug, Clone)]
@@ -85,6 +88,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .route("/", web::get().to(health_checker))
             .configure(user_route_group)
             .configure(wallet_route_group)
+            .configure(transfer_route_group)
+            .configure(webhook_route_group)
             .default_service(web::route().to(not_found))
             .wrap(cors)
             .wrap(TracingLogger::default())

@@ -1,5 +1,5 @@
 use actix_web::{http, web, HttpResponse, Responder};
-use argonautica::{Hasher, Verifier};
+use argonautica::Hasher;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::*;
@@ -13,6 +13,7 @@ use crate::dto::users::{LoginBody, SignupBody, TokenClaims, VerifyAccount};
 use crate::entities::{prelude::Users, users, wallets};
 use crate::utils::{
     email_template::verify_account_template,
+    helpers::validate_password,
     send_email::{SendEmail, SendEmailTrait},
 };
 use crate::AppState;
@@ -147,18 +148,7 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
         }
     };
 
-    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
-    let mut verifier = Verifier::default();
-    let is_valid_password = verifier
-        .with_hash(&check_user.password)
-        .with_password(user_payload.password)
-        .with_secret_key(hash_key)
-        .verify()
-        .unwrap_or_else(|err| {
-            error!("Failed to verify user password hash ===> {}", err);
-            false
-        });
-
+    let is_valid_password = validate_password(&check_user.password, &user_payload.password);
     if !is_valid_password {
         return HttpResponse::BadRequest()
             .json(json!({ "status": "error",  "message": "Incorrect login details" }));

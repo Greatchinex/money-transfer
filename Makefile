@@ -1,5 +1,4 @@
 install:
-	cargo install cargo-edit
 	cargo add actix-web
 	cargo add actix-cors
 	cargo add serde_json
@@ -28,6 +27,8 @@ install:
 	cargo add tracing-log
 	cargo add futures
 	cargo add lettre
+	cargo add ring
+	cargo add hex
 	cargo install cargo-watch
 
 build: 
