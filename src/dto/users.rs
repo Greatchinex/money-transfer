@@ -32,3 +32,8 @@ pub struct TokenClaims {
     pub exp: usize,
     pub iat: usize,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyAccount {
+    pub token: String,
+}
