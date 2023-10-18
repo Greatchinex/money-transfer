@@ -1,3 +1,4 @@
+use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::*;
 use serde_json::{to_string, Value};
@@ -48,8 +49,14 @@ pub async fn handle_inflow_webhook(
         .as_str()
         .unwrap_or_default()
         .to_string();
+    let uuid = Uuid::new_v4().to_string();
 
-    let txn = db.begin().await?;
+    let txn = db
+        .begin_with_config(
+            Some(IsolationLevel::RepeatableRead),
+            Some(AccessMode::ReadWrite),
+        )
+        .await?;
 
     let my_wallet = Wallets::find()
         .filter(wallets::Column::UserId.eq(&user_id))
@@ -77,6 +84,7 @@ pub async fn handle_inflow_webhook(
     let mut wallet_model: wallets::ActiveModel = my_wallet.into();
     wallet_model.current_balance = Set(new_balance);
     wallet_model.previous_balance = Set(previous_balance);
+    wallet_model.updated_at = Set(Utc::now());
 
     let wallet_model = match wallet_model.update(&txn).await {
         Ok(wallet) => wallet,
@@ -88,10 +96,10 @@ pub async fn handle_inflow_webhook(
     };
 
     let new_transaction = transactions::ActiveModel {
-        uuid: Set(Uuid::new_v4().to_string()),
+        description: Set(format!("Funding of account. ID: {}", &uuid)),
+        uuid: Set(uuid),
         amount: Set(amt_in_naira),
         trx_type: Set(Some(TrxType::Credit)),
-        description: Set(String::from("Account funding")),
         provider_reference: Set(Some(reference)),
         current_balance: Set(new_balance),
         previous_balance: Set(previous_balance),
