@@ -253,14 +253,28 @@ pub async fn verify_account(
 
     let user_id = check_user.uuid.clone();
     let mut user: users::ActiveModel = check_user.into();
+
     let txn = app_state
         .db
-        .begin()
+        .begin_with_config(
+            Some(IsolationLevel::RepeatableRead),
+            Some(AccessMode::ReadWrite),
+        )
         .await
         .expect("Failed to start a DB transaction");
 
     user.is_verified = Set(1);
-    let _ = user.update(&txn).await;
+    user.updated_at = Set(Utc::now());
+    let _ = match user.update(&txn).await {
+        Ok(user) => user,
+        Err(err) => {
+            error!("Failed to update user status for {}: {}", &claims.sub, err);
+            let _ = txn.rollback().await;
+            return HttpResponse::Found()
+                .insert_header((http::header::LOCATION, "https://github.com/Greatchinex"))
+                .finish();
+        }
+    };
 
     let new_wallet = wallets::ActiveModel {
         uuid: Set(Uuid::new_v4().to_string()),
