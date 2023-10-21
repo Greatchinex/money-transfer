@@ -1,13 +1,18 @@
-use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::*;
-use serde_json::{to_string, Value};
+use serde_json::Value;
 use thiserror::Error;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::entities::{prelude::Wallets, sea_orm_active_enums::TrxType, transactions, wallets};
+use crate::entities::{
+    prelude::Wallets,
+    sea_orm_active_enums::{Status, TrxType},
+    wallets,
+};
 use crate::utils::paystack::verify_transaction;
+
+use super::transaction_balance::{TransactionBalance, TransactionBalanceTrait, TrxCategory};
 
 #[derive(Error, Debug)]
 pub enum WebhookHandlerError {
@@ -44,12 +49,12 @@ pub async fn handle_inflow_webhook(
         return Ok(false);
     }
 
+    let uuid = Uuid::new_v4();
     let amt_in_naira = amount / n_unit;
     let user_id = verify_trx["data"]["metadata"]["user_id"]
         .as_str()
         .unwrap_or_default()
         .to_string();
-    let uuid = Uuid::new_v4().to_string();
 
     let txn = db
         .begin_with_config(
@@ -78,44 +83,28 @@ pub async fn handle_inflow_webhook(
         }
     };
 
-    let new_balance = my_wallet.current_balance + amt_in_naira;
-    let previous_balance = my_wallet.current_balance;
-
-    let mut wallet_model: wallets::ActiveModel = my_wallet.into();
-    wallet_model.current_balance = Set(new_balance);
-    wallet_model.previous_balance = Set(previous_balance);
-    wallet_model.updated_at = Set(Utc::now());
-
-    let wallet_model = match wallet_model.update(&txn).await {
-        Ok(wallet) => wallet,
-        Err(err) => {
-            error!("DB error crediting user wallet: {}", err);
-            let _ = txn.rollback().await;
-            return Err(WebhookHandlerError::DatabaseError(err));
-        }
+    let save_trx = TransactionBalance {
+        uuid: format!("{}", &uuid),
+        amount: amt_in_naira,
+        trx_type: TrxType::Credit,
+        status: Status::Successful,
+        description: format!("Funding of account. ID: {}", &uuid),
+        provider_reference: Some(format!("{}", &reference)),
+        current_balance: my_wallet.current_balance + amt_in_naira,
+        previous_balance: my_wallet.current_balance,
+        user_id: format!("{}", &user_id),
+        wallet_id: format!("{}", &my_wallet.uuid),
+        provider: format!("paystack"),
+        fees: None,
+        provider_fees: Some(provider_fees / n_unit),
+        category: TrxCategory::Funding,
+        meta: Some(payload.to_string()),
     };
 
-    let new_transaction = transactions::ActiveModel {
-        description: Set(format!("Funding of account. ID: {}", &uuid)),
-        uuid: Set(uuid),
-        amount: Set(amt_in_naira),
-        trx_type: Set(Some(TrxType::Credit)),
-        provider_reference: Set(Some(reference)),
-        current_balance: Set(new_balance),
-        previous_balance: Set(previous_balance),
-        user_id: Set(user_id),
-        wallet_id: Set(wallet_model.uuid),
-        provider: Set(String::from("paystack")),
-        provider_fees: Set(provider_fees / n_unit),
-        category: Set(String::from("funding")),
-        meta: Set(Some(to_string(&payload).unwrap_or_default())),
-        ..Default::default()
-    };
-
-    let _ = match new_transaction.insert(&txn).await {
-        Ok(trx) => trx,
+    let _ = match save_trx.save_transaction_update_balance(&txn).await {
+        Ok(resp) => resp,
         Err(err) => {
-            error!("DB error inserting new transaction: {}", err);
+            error!("DB error updating wallet and creating transaction: {}", err);
             let _ = txn.rollback().await;
             return Err(WebhookHandlerError::DatabaseError(err));
         }
