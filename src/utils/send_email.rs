@@ -25,9 +25,9 @@ impl SendEmailTrait for SendEmail {
         let email = Message::builder()
             .to(self.to.parse().unwrap())
             .from(self.from.parse().unwrap())
-            .subject(self.subject.clone())
+            .subject(format!("{}", self.subject))
             .header(ContentType::TEXT_HTML)
-            .body(String::from(self.template.clone()))
+            .body(format!("{}", self.template))
             .expect("Failed to build email");
 
         let smtp_provider =

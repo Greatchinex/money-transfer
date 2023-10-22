@@ -60,7 +60,7 @@ pub async fn auth_middleware(
         ));
     }
 
-    let app_state = req.app_data::<web::Data<AppState>>().unwrap().clone();
+    let app_state = req.app_data::<web::Data<AppState>>().unwrap();
 
     let user = Users::find()
         .filter(Column::Uuid.eq(claims.sub))

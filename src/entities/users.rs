@@ -52,10 +52,10 @@ impl Model {
     pub fn filter_response(&self) -> UserResponse {
         UserResponse {
             id: self.id,
-            uuid: self.uuid.clone(),
-            first_name: self.first_name.clone(),
-            last_name: self.last_name.clone(),
-            email: self.email.clone(),
+            uuid: format!("{}", self.uuid),
+            first_name: format!("{}", self.first_name),
+            last_name: format!("{}", self.last_name),
+            email: format!("{}", self.email),
             is_verified: self.is_verified,
             created_at: self.created_at,
             updated_at: self.updated_at,

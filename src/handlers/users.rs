@@ -70,9 +70,9 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
 
     let new_user = users::ActiveModel {
         uuid: Set(Uuid::new_v4().to_string()),
-        first_name: Set(user_payload.first_name.clone()),
-        last_name: Set(user_payload.last_name),
-        email: Set(lowercase_email.clone()),
+        first_name: Set(format!("{}", &user_payload.first_name)),
+        last_name: Set(format!("{}", &user_payload.last_name)),
+        email: Set(format!("{}", &lowercase_email)),
         password: Set(hashed_password),
         ..Default::default()
     };
@@ -90,7 +90,7 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
     let from_email = env::var("FROM_EMAIL").expect("FROM_EMAIL is not set in .env file");
     let now = Utc::now();
     let claims = TokenClaims {
-        sub: lowercase_email.clone(),
+        sub: format!("{}", &lowercase_email),
         auth_type: String::from("ACCOUNT_VERIFICATION"),
         exp: (now + Duration::days(3)).timestamp() as usize,
         iat: now.timestamp() as usize,
@@ -335,7 +335,10 @@ pub async fn set_pin(
     }
 
     if is_pin_reset == true {
-        let hashed_pin = req_user.withdrawal_pin.clone().unwrap_or(String::new());
+        let hashed_pin = match &req_user.withdrawal_pin {
+            Some(hashed_pin) => format!("{}", hashed_pin),
+            None => String::new(),
+        };
 
         let is_current_pin_valid = validate_password(
             &hashed_pin,
