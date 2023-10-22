@@ -11,6 +11,7 @@ use crate::entities::{
     wallets,
 };
 use crate::utils::paystack::verify_transaction;
+use crate::AppState;
 
 use super::transaction_balance::{TransactionBalance, TransactionBalanceTrait, TrxCategory};
 
@@ -25,14 +26,14 @@ pub enum WebhookHandlerError {
 
 pub async fn handle_inflow_webhook(
     payload: &Value,
-    db: &DatabaseConnection,
+    app_state: &AppState,
 ) -> Result<bool, WebhookHandlerError> {
     let reference = payload["data"]["reference"]
         .as_str()
         .unwrap_or_default()
         .to_string();
 
-    let verify_trx = verify_transaction(&reference).await?;
+    let verify_trx = verify_transaction(&reference, &app_state.env).await?;
 
     let n_unit: Decimal = 100.into();
     let status: &str = verify_trx["data"]["status"].as_str().unwrap_or_default();
@@ -56,7 +57,8 @@ pub async fn handle_inflow_webhook(
         .unwrap_or_default()
         .to_string();
 
-    let txn = db
+    let txn = app_state
+        .db
         .begin_with_config(
             Some(IsolationLevel::RepeatableRead),
             Some(AccessMode::ReadWrite),

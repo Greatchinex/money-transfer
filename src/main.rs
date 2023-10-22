@@ -3,7 +3,7 @@ use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use serde_json::json;
-use std::{env, io, process};
+use std::{io, process};
 use tracing::{error, info, log::LevelFilter};
 use tracing_actix_web::TracingLogger;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
@@ -14,6 +14,7 @@ use routes::transfers::transfer_route_group;
 use routes::users::user_route_group;
 use routes::wallets::wallet_route_group;
 use routes::webhooks::webhook_route_group;
+use utils::config::EnvConfig;
 
 pub mod dto;
 pub mod entities;
@@ -26,6 +27,7 @@ pub mod utils;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
+    pub env: EnvConfig,
 }
 
 async fn health_checker() -> impl Responder {
@@ -43,10 +45,12 @@ async fn not_found() -> impl Responder {
 async fn main() -> Result<(), anyhow::Error> {
     dotenv().ok();
     LogTracer::init().expect("Unable to setup log tracer");
+    let env = EnvConfig::init();
 
-    let app_name = env::var("APP_NAME").expect("APP_NAME is not set in .env file");
     let (non_blocking_writer, _guard) = tracing_appender::non_blocking(io::stdout());
-    let bunyan_formatting_layer = BunyanFormattingLayer::new(app_name, non_blocking_writer);
+    let bunyan_formatting_layer =
+        BunyanFormattingLayer::new(format!("{}", &env.app_name), non_blocking_writer);
+
     let subscriber = Registry::default()
         .with(EnvFilter::new("INFO"))
         .with(JsonStorageLayer)
@@ -55,12 +59,8 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing::subscriber::set_global_default(subscriber)
         .expect("Failed to install `tracing` subscriber.");
 
-    let port = env::var("PORT").expect("PORT is not set in .env file");
-    let host = env::var("HOST").expect("HOST is not set in .env file");
-    let socket_address = format!("{host}:{port}");
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-
-    let mut opt = ConnectOptions::new(database_url);
+    let socket_address = format!("{}:{}", &env.host, &env.port);
+    let mut opt = ConnectOptions::new(&env.database_url);
     opt.sqlx_logging(false)
         .sqlx_logging_level(LevelFilter::Info);
 
@@ -75,9 +75,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     };
 
-    let app_state = AppState { db: pool };
+    info!("Starting server on port {}", &env.port);
 
-    info!("Starting server on port {}", port);
+    let app_state = AppState { db: pool, env };
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_methods(vec!["GET", "POST", "PATCH", "PUT", "DELETE"])

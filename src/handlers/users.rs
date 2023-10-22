@@ -4,7 +4,6 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::*;
 use serde_json::json;
-use std::env;
 use tracing::{error, instrument};
 use uuid::Uuid;
 use validator::Validate;
@@ -52,11 +51,10 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
         }
     };
 
-    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
     let mut hasher = Hasher::default();
     let hashed_password = hasher
         .with_password(user_payload.password)
-        .with_secret_key(hash_key)
+        .with_secret_key(&app_state.env.hash_key)
         .hash();
 
     let hashed_password = match hashed_password {
@@ -86,8 +84,6 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
     }
 
     // SIGN TOKEN FOR EMAIL VERIFICATION
-    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
-    let from_email = env::var("FROM_EMAIL").expect("FROM_EMAIL is not set in .env file");
     let now = Utc::now();
     let claims = TokenClaims {
         sub: format!("{}", &lowercase_email),
@@ -99,22 +95,22 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(token_secret.as_ref()),
+        &EncodingKey::from_secret(app_state.env.app_key.as_ref()),
     )
     .unwrap_or_else(|err| {
         error!("Error signing verification token: {}", err);
         String::new()
     });
 
-    let template = verify_account_template(&user_payload.first_name, &token);
+    let template = verify_account_template(&user_payload.first_name, &token, &app_state.env);
     let email = SendEmail {
         to: claims.sub,
-        from: from_email,
+        from: format!("{}", &app_state.env.from_email),
         subject: String::from("WELCOME, VERIFY YOUR ACCOUNT"),
         template,
     };
 
-    let _ = email.send_email().await;
+    let _ = email.send_email(&app_state.env).await;
 
     HttpResponse::Created()
         .json(json!({ "status": "success", "message": "User created successfully" }))
@@ -150,13 +146,16 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
         }
     };
 
-    let is_valid_password = validate_password(&check_user.password, &user_payload.password);
+    let is_valid_password = validate_password(
+        &check_user.password,
+        &user_payload.password,
+        &app_state.env.hash_key,
+    );
     if !is_valid_password {
         return HttpResponse::BadRequest()
             .json(json!({ "status": "error",  "message": "Incorrect login details" }));
     }
 
-    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
     let now = Utc::now();
     let claims = TokenClaims {
         sub: check_user.uuid.to_string(),
@@ -168,7 +167,7 @@ pub async fn login(body: web::Json<LoginBody>, app_state: web::Data<AppState>) -
     let token = match encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(token_secret.as_ref()),
+        &EncodingKey::from_secret(app_state.env.app_key.as_ref()),
     ) {
         Ok(token) => token,
         Err(err) => {
@@ -205,11 +204,9 @@ pub async fn verify_account(
     query: web::Query<VerifyAccountParams>,
     app_state: web::Data<AppState>,
 ) -> impl Responder {
-    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
-
     let claims = match decode::<TokenClaims>(
         &query.token,
-        &DecodingKey::from_secret(token_secret.as_ref()),
+        &DecodingKey::from_secret(app_state.env.app_key.as_ref()),
         &Validation::default(),
     ) {
         Ok(c) => c.claims,
@@ -317,7 +314,11 @@ pub async fn set_pin(
         }
     };
 
-    let is_valid_password = validate_password(&req_user.password, &request_payload.password);
+    let is_valid_password = validate_password(
+        &req_user.password,
+        &request_payload.password,
+        &app_state.env.hash_key,
+    );
     if !is_valid_password {
         return HttpResponse::BadRequest()
             .json(json!({ "status": "error",  "message": "Wrong password provided" }));
@@ -343,6 +344,7 @@ pub async fn set_pin(
         let is_current_pin_valid = validate_password(
             &hashed_pin,
             &request_payload.current_pin.unwrap_or_default(),
+            &app_state.env.hash_key,
         );
         if !is_current_pin_valid {
             return HttpResponse::BadRequest().json(
@@ -351,7 +353,11 @@ pub async fn set_pin(
         }
 
         // Make sure new pin is not the same as old pin
-        let check_new_pin = validate_password(&hashed_pin, &request_payload.new_pin);
+        let check_new_pin = validate_password(
+            &hashed_pin,
+            &request_payload.new_pin,
+            &app_state.env.hash_key,
+        );
         if check_new_pin == true {
             return HttpResponse::BadRequest().json(
                 json!({ "status": "error",  "message": "New PIN cannot be the same as old PIN" }),
@@ -359,11 +365,10 @@ pub async fn set_pin(
         }
     }
 
-    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
     let mut hasher = Hasher::default();
     let hashed_password = hasher
         .with_password(request_payload.new_pin)
-        .with_secret_key(hash_key)
+        .with_secret_key(&app_state.env.hash_key)
         .hash();
 
     let hashed_password = match hashed_password {

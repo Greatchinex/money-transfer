@@ -1,8 +1,10 @@
-use std::env;
+use super::config::EnvConfig;
 
-pub fn verify_account_template(first_name: &String, token: &String) -> String {
-    let app_base_url = env::var("APP_BASE_URL").expect("APP_BASE_URL is not set in .env file");
-    let verify_account_url = format!("{app_base_url}/api/user/verify-account?token={token}");
+pub fn verify_account_template(first_name: &String, token: &String, env: &EnvConfig) -> String {
+    let verify_account_url = format!(
+        "{}/api/user/verify-account?token={}",
+        env.app_base_url, token
+    );
 
     format!(
         r#"
