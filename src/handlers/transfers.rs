@@ -13,10 +13,11 @@ use crate::utils::paystack::initiate_user_funding;
 use crate::service::transaction_balance::{ TransactionBalance, TrxCategory, TransactionBalanceTrait };
 use crate::AppState;
 
-#[instrument(skip(body, req_user), fields(user_id = %req_user.uuid, amount = %body.amount))]
+#[instrument(skip(body, req_user, app_state), fields(user_id = %req_user.uuid, amount = %body.amount))]
 pub async fn fund_account(
     body: web::Json<InitiateFundingBody>,
     req_user: web::ReqData<users::Model>,
+    app_state: web::Data<AppState>
 ) -> impl Responder {
     let request_payload = match body.validate() {
         Ok(_) => body.into_inner(),
@@ -32,13 +33,22 @@ pub async fn fund_account(
             .json(json!({ "status": "error",  "message": "Please verify your account before taking this action" }));
     }
 
-    let is_valid_password = validate_password(&req_user.password, &request_payload.password);
+    let is_valid_password = validate_password(
+        &req_user.password,
+        &request_payload.password,
+        &app_state.env.hash_key
+    );
     if !is_valid_password {
         return HttpResponse::BadRequest()
             .json(json!({ "status": "error",  "message": "Wrong password provided" }));
     }
 
-    let response = initiate_user_funding(&req_user.email, &req_user.uuid, request_payload.amount).await;
+    let response = initiate_user_funding(
+        &req_user.email, 
+        &req_user.uuid, 
+        request_payload.amount,
+        &app_state.env
+    ).await;
 
     match response {
         Ok(response) => {
@@ -90,7 +100,7 @@ pub async fn p2p_transfer(
         }
     };
 
-    let is_valid_pin = validate_password(hashed_pin, &request_payload.pin);
+    let is_valid_pin = validate_password(hashed_pin, &request_payload.pin, &app_state.env.hash_key);
     if !is_valid_pin {
         return HttpResponse::BadRequest()
             .json(json!({ "status": "error",  "message": "Incorrect PIN" }));

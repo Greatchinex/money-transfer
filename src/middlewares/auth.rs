@@ -9,7 +9,6 @@ use futures::future::{err, ok, Ready};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
-use std::env;
 use tracing::error;
 use uuid::Uuid;
 
@@ -38,11 +37,12 @@ pub async fn auth_middleware(
         ));
     }
 
+    let app_state = req.app_data::<web::Data<AppState>>().unwrap();
+
     let token = auth_parts[1].trim();
-    let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
     let claims = match decode::<TokenClaims>(
         token,
-        &DecodingKey::from_secret(token_secret.as_ref()),
+        &DecodingKey::from_secret(app_state.env.app_key.as_ref()),
         &Validation::default(),
     ) {
         Ok(c) => c.claims,
@@ -59,8 +59,6 @@ pub async fn auth_middleware(
             json!({ "status": "error", "message": "Invalid auth" }),
         ));
     }
-
-    let app_state = req.app_data::<web::Data<AppState>>().unwrap();
 
     let user = Users::find()
         .filter(Column::Uuid.eq(claims.sub))
@@ -115,11 +113,12 @@ impl FromRequest for AuthMiddleware {
             ));
         }
 
+        let app_state = req.app_data::<web::Data<AppState>>().unwrap();
+
         let token = auth_parts[1].trim();
-        let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
         let claims = match decode::<TokenClaims>(
             token,
-            &DecodingKey::from_secret(token_secret.as_ref()),
+            &DecodingKey::from_secret(app_state.env.app_key.as_ref()),
             &Validation::default(),
         ) {
             Ok(c) => c.claims,

@@ -1,6 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use serde_json::{json, Value};
-use std::env;
 use tracing::{error, instrument};
 
 use crate::service::paystack_webhook::handle_inflow_webhook;
@@ -13,7 +12,6 @@ pub async fn paystack_webhook(
     body: web::Json<Value>,
     app_state: web::Data<AppState>,
 ) -> impl Responder {
-    let secret = env::var("PAYSTACK_SECRET").expect("PAYSTACK_SECRET is not set in .env file");
     let signature = req
         .headers()
         .get("x-paystack-signature")
@@ -22,7 +20,11 @@ pub async fn paystack_webhook(
         .expect("Failed to parse signaure header to string");
 
     // TODO: Properly look into below method
-    let is_valid_signature = validate_signature(&body.to_string(), &signature.to_string(), &secret);
+    let is_valid_signature = validate_signature(
+        &body.to_string(),
+        &signature.to_string(),
+        &app_state.env.paystack_secret,
+    );
     if !is_valid_signature {
         return HttpResponse::Ok()
             .json(json!({ "status": "success", "message": "Invlaid signature" }));
@@ -31,7 +33,7 @@ pub async fn paystack_webhook(
     let event_type = body["event"].as_str().unwrap_or_default().to_string();
 
     if event_type == "charge.success" {
-        let _ = match handle_inflow_webhook(&body, &app_state.db).await {
+        let _ = match handle_inflow_webhook(&body, &app_state).await {
             Ok(bool) => bool,
             Err(err) => {
                 error!("Error occured trying to fund user account: {}", err);

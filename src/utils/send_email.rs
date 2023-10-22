@@ -3,8 +3,9 @@ use lettre::{
     message::header::ContentType, transport::smtp::authentication::Credentials, AsyncSmtpTransport,
     AsyncTransport, Message, Tokio1Executor,
 };
-use std::env;
 use tracing::{error, info, instrument};
+
+use super::config::EnvConfig;
 
 pub struct SendEmail {
     pub to: String,
@@ -15,13 +16,13 @@ pub struct SendEmail {
 
 #[async_trait]
 pub trait SendEmailTrait {
-    async fn send_email(&self) -> Result<(), ()>;
+    async fn send_email(&self, env: &EnvConfig) -> Result<(), ()>;
 }
 
 #[async_trait]
 impl SendEmailTrait for SendEmail {
-    #[instrument(skip(self), fields(email = %self.to, subject = %self.subject))]
-    async fn send_email(&self) -> Result<(), ()> {
+    #[instrument(skip(self, env), fields(email = %self.to, subject = %self.subject))]
+    async fn send_email(&self, env: &EnvConfig) -> Result<(), ()> {
         let email = Message::builder()
             .to(self.to.parse().unwrap())
             .from(self.from.parse().unwrap())
@@ -30,14 +31,12 @@ impl SendEmailTrait for SendEmail {
             .body(format!("{}", self.template))
             .expect("Failed to build email");
 
-        let smtp_provider =
-            env::var("SMTP_PROVIDER").expect("SMTP_PROVIDER is not set in .env file");
-        let smtp_user = env::var("SMTP_USER").expect("SMTP_USER is not set in .env file");
-        let smtp_key = env::var("SMTP_KEY").expect("SMTP_KEY is not set in .env file");
-
-        let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_provider)
+        let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&env.smtp_provider)
             .unwrap()
-            .credentials(Credentials::new(smtp_user, smtp_key))
+            .credentials(Credentials::new(
+                format!("{}", &env.smtp_user),
+                format!("{}", &env.smtp_key),
+            ))
             .build();
 
         match mailer.send(email).await {

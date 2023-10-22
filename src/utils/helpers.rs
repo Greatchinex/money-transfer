@@ -1,12 +1,13 @@
 use argonautica::Verifier;
 use hex;
 use ring::hmac;
-use std::env;
 use tracing::error;
 
-pub fn validate_password(hashed_password: &String, compare_password: &String) -> bool {
-    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
-
+pub fn validate_password(
+    hashed_password: &String,
+    compare_password: &String,
+    hash_key: &String,
+) -> bool {
     let mut verifier = Verifier::default();
     verifier
         .with_hash(hashed_password)
