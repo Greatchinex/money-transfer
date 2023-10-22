@@ -37,3 +37,15 @@ pub struct TokenClaims {
 pub struct VerifyAccountParams {
     pub token: String,
 }
+
+#[derive(Deserialize, Validate, Debug)]
+pub struct SetWithdrawalPinBody {
+    #[validate(length(min = 6, max = 6, message = "PIN must be Six(6) characters long"))]
+    pub new_pin: String,
+
+    #[validate(length(min = 6, max = 6, message = "PIN must be Six(6) characters long"))]
+    pub current_pin: Option<String>,
+
+    #[validate(length(min = 3, message = "Password must be minimum of three(3) characters"))]
+    pub password: String,
+}

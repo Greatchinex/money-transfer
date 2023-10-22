@@ -256,6 +256,6 @@ pub async fn p2p_transfer(
 
     let _ = txn.commit().await;
 
-    HttpResponse::Created()
+    HttpResponse::Ok()
         .json(json!({ "status": "success", "message": "Funds sent successfully" }))
 }
