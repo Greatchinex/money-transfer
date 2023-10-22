@@ -9,7 +9,9 @@ use tracing::{error, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::users::{LoginBody, SignupBody, TokenClaims, VerifyAccount};
+use crate::dto::users::{
+    LoginBody, SetWithdrawalPinBody, SignupBody, TokenClaims, VerifyAccountParams,
+};
 use crate::entities::{prelude::Users, users, wallets};
 use crate::utils::{
     email_template::verify_account_template,
@@ -34,8 +36,13 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
         .one(&app_state.db)
         .await;
 
-    let check_user = match check_user {
-        Ok(check_user) => check_user,
+    let _ = match check_user {
+        Ok(None) => true,
+        Ok(Some(_)) => {
+            return HttpResponse::BadRequest().json(
+                json!({ "status": "error",  "message": "User with this email already exists" }),
+            );
+        }
         Err(err) => {
             error!("Database error while trying to fetch a user ===> {}", err);
             return HttpResponse::InternalServerError().json(json!({
@@ -44,11 +51,6 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
             }));
         }
     };
-
-    if let Some(_) = check_user {
-        return HttpResponse::BadRequest()
-            .json(json!({ "status": "error",  "message": "User with this email already exists" }));
-    }
 
     let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
     let mut hasher = Hasher::default();
@@ -200,7 +202,7 @@ pub async fn me(req_user: web::ReqData<users::Model>) -> impl Responder {
 // NOTE: Ideally there should be an error and success page created by a frontend dev to redirect a user on success/failure
 // I am redirecting to the project repo on success and my github profile page on error
 pub async fn verify_account(
-    query: web::Query<VerifyAccount>,
+    query: web::Query<VerifyAccountParams>,
     app_state: web::Data<AppState>,
 ) -> impl Responder {
     let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
@@ -251,7 +253,7 @@ pub async fn verify_account(
             .finish();
     }
 
-    let user_id = check_user.uuid.clone();
+    let user_id = format!("{}", &check_user.uuid);
     let mut user: users::ActiveModel = check_user.into();
 
     let txn = app_state
@@ -277,7 +279,7 @@ pub async fn verify_account(
     };
 
     let new_wallet = wallets::ActiveModel {
-        uuid: Set(Uuid::new_v4().to_string()),
+        uuid: Set(format!("{}", Uuid::new_v4())),
         user_id: Set(user_id),
         ..Default::default()
     };
@@ -299,4 +301,103 @@ pub async fn verify_account(
             "https://github.com/Greatchinex/money-transfer",
         ))
         .finish()
+}
+
+#[instrument(skip(body, req_user, app_state), fields(user_id = %req_user.uuid))]
+pub async fn set_pin(
+    body: web::Json<SetWithdrawalPinBody>,
+    req_user: web::ReqData<users::Model>,
+    app_state: web::Data<AppState>,
+) -> impl Responder {
+    let request_payload = match body.validate() {
+        Ok(_) => body.into_inner(),
+        Err(err) => {
+            return HttpResponse::BadRequest()
+                .json(json!({ "status": "error", "message": "Validation errors", "data": err }));
+        }
+    };
+
+    let is_valid_password = validate_password(&req_user.password, &request_payload.password);
+    if !is_valid_password {
+        return HttpResponse::BadRequest()
+            .json(json!({ "status": "error",  "message": "Wrong password provided" }));
+    }
+
+    // If user is setting PIN for the first time or is changing an existing PIN
+    let is_pin_reset = match &req_user.withdrawal_pin {
+        Some(_) => true,
+        None => false,
+    };
+
+    if is_pin_reset == true && request_payload.current_pin.is_none() {
+        return HttpResponse::BadRequest()
+            .json(json!({ "status": "error",  "message": "Please pass your current PIN" }));
+    }
+
+    if is_pin_reset == true {
+        let hashed_pin = req_user.withdrawal_pin.clone().unwrap_or(String::new());
+
+        let is_current_pin_valid = validate_password(
+            &hashed_pin,
+            &request_payload.current_pin.unwrap_or_default(),
+        );
+        if !is_current_pin_valid {
+            return HttpResponse::BadRequest().json(
+                json!({ "status": "error",  "message": "Current PIN you provided is incorrect" }),
+            );
+        }
+
+        // Make sure new pin is not the same as old pin
+        let check_new_pin = validate_password(&hashed_pin, &request_payload.new_pin);
+        if check_new_pin == true {
+            return HttpResponse::BadRequest().json(
+                json!({ "status": "error",  "message": "New PIN cannot be the same as old PIN" }),
+            );
+        }
+    }
+
+    let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
+    let mut hasher = Hasher::default();
+    let hashed_password = hasher
+        .with_password(request_payload.new_pin)
+        .with_secret_key(hash_key)
+        .hash();
+
+    let hashed_password = match hashed_password {
+        Ok(hashed_password) => hashed_password,
+        Err(err) => {
+            error!("Failed to hash PIN ===> {}", err);
+            return HttpResponse::InternalServerError()
+                .json(json!({ "status": "error", "message": "An unexpected error occured" }));
+        }
+    };
+
+    let user_id = format!("{}", &req_user.uuid);
+    let exec = app_state
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::MySql,
+            r#"
+                UPDATE users
+                SET withdrawal_pin = ?, updated_at = ?
+                WHERE uuid = ?
+            ;"#,
+            [hashed_password.into(), Utc::now().into(), user_id.into()],
+        ))
+        .await;
+
+    match exec {
+        Ok(_) => {
+            return HttpResponse::Ok().json(json!({
+                "status": "success",
+                "message": "PIN set successfully"
+            }));
+        }
+        Err(err) => {
+            error!("DB error updating user PIN ===> {}", err);
+            return HttpResponse::BadRequest().json(json!({
+                "status": "error",  "message": "Error setting user PIN, Please try again later"
+            }));
+        }
+    }
 }

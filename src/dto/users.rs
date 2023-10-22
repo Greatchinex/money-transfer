@@ -3,10 +3,10 @@ use validator::Validate;
 
 #[derive(Deserialize, Validate, Debug)]
 pub struct SignupBody {
-    #[validate(length(min = 1, max = 255))]
+    #[validate(length(min = 2, max = 50))]
     pub first_name: String,
 
-    #[validate(length(min = 1, max = 255))]
+    #[validate(length(min = 2, max = 50))]
     pub last_name: String,
 
     #[validate(email(message = "Email must be a valid email type"))]
@@ -34,6 +34,18 @@ pub struct TokenClaims {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct VerifyAccount {
+pub struct VerifyAccountParams {
     pub token: String,
+}
+
+#[derive(Deserialize, Validate, Debug)]
+pub struct SetWithdrawalPinBody {
+    #[validate(length(min = 6, max = 6, message = "PIN must be Six(6) characters long"))]
+    pub new_pin: String,
+
+    #[validate(length(min = 6, max = 6, message = "PIN must be Six(6) characters long"))]
+    pub current_pin: Option<String>,
+
+    #[validate(length(min = 3, message = "Password must be minimum of three(3) characters"))]
+    pub password: String,
 }
