@@ -9,7 +9,7 @@ use tracing::{error, instrument};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::users::{LoginBody, SignupBody, TokenClaims, VerifyAccount};
+use crate::dto::users::{LoginBody, SignupBody, TokenClaims, VerifyAccountParams};
 use crate::entities::{prelude::Users, users, wallets};
 use crate::utils::{
     email_template::verify_account_template,
@@ -34,8 +34,13 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
         .one(&app_state.db)
         .await;
 
-    let check_user = match check_user {
-        Ok(check_user) => check_user,
+    let _ = match check_user {
+        Ok(None) => true,
+        Ok(Some(_)) => {
+            return HttpResponse::BadRequest().json(
+                json!({ "status": "error",  "message": "User with this email already exists" }),
+            );
+        }
         Err(err) => {
             error!("Database error while trying to fetch a user ===> {}", err);
             return HttpResponse::InternalServerError().json(json!({
@@ -44,11 +49,6 @@ pub async fn signup(body: web::Json<SignupBody>, app_state: web::Data<AppState>)
             }));
         }
     };
-
-    if let Some(_) = check_user {
-        return HttpResponse::BadRequest()
-            .json(json!({ "status": "error",  "message": "User with this email already exists" }));
-    }
 
     let hash_key = env::var("HASH_KEY").expect("HASH_KEY is not set in .env file");
     let mut hasher = Hasher::default();
@@ -200,7 +200,7 @@ pub async fn me(req_user: web::ReqData<users::Model>) -> impl Responder {
 // NOTE: Ideally there should be an error and success page created by a frontend dev to redirect a user on success/failure
 // I am redirecting to the project repo on success and my github profile page on error
 pub async fn verify_account(
-    query: web::Query<VerifyAccount>,
+    query: web::Query<VerifyAccountParams>,
     app_state: web::Data<AppState>,
 ) -> impl Responder {
     let token_secret = env::var("APP_KEY").expect("APP_KEY is not set in .env file");
