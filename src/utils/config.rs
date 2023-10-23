@@ -36,4 +36,9 @@ impl EnvConfig {
             paystack_secret: var("PAYSTACK_SECRET").expect("Missing env PAYSTACK_SECRET"),
         }
     }
+
+    // For instances where global app_state cannot be passed or will be incovinient to do so
+    pub fn get_single_env(env_key: &str) -> String {
+        var(env_key).expect(format!("Missing env {env_key}").as_str())
+    }
 }
